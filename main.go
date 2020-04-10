@@ -4,12 +4,10 @@ import (
 	"database/sql"
 	"errors"
 	"html/template"
-	"io/ioutil"
 	"log"
 	"net/http" //HTTPプロトコルを利用してくれるパッケージ
 	"os"
 	"regexp" //正規表現のパッケージ
-	"strings"
 
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -66,6 +64,7 @@ func viewHandler(w http.ResponseWriter, r *http.Request, title string) { //*http
 		http.Redirect(w, r, "/edit/"+title, http.StatusFound)
 		return
 	}
+
 	renderTemplate(w, "view", p)
 }
 
@@ -92,54 +91,35 @@ func saveHandler(w http.ResponseWriter, r *http.Request, title string) {
 		panic(err.Error())
 	}
 
-	result, err := stmtInsert.Exec(title, body)
+	_, err = stmtInsert.Exec(title, body)
 	if err != nil {
 		panic(err.Error())
 	}
 
-	lastInsertID, err := result.LastInsertId()
-	if err != nil {
-		panic(err.Error())
-	}
-	log.Println(lastInsertID)
-	// p := &Page{Title: title, Body: []byte(body)}
-	// err := p.save()
-	// if err != nil {
-	// 	http.Error(w, err.Error(), http.StatusInternalServerError)
-	// 	return
-	// }
 	http.Redirect(w, r, "/view/"+title, http.StatusFound)
 }
 
 func topHandler(w http.ResponseWriter, r *http.Request) {
-	//main.goがいる階層のディレクトリにあるfileを取得する
-	files, err := ioutil.ReadDir("./")
+	db, err := sql.Open("mysql", "root:Reibo1998@@/go_wiki")
 	if err != nil {
-		err = errors.New("所定のディレクトリ内にテキストファイルがありません")
-		log.Print(err)
-		return
-	}
-	var paths []string    //テキストデータの名前
-	var fileName []string //テキストデータのファイル名
-	// filesの中から.txtファイルの名前と
-	for _, file := range files {
-		//対象となる.txtデータのみを取得
-		if strings.HasSuffix(file.Name(), expendString) {
-			//テキストデータの .txtで名前をスライスしたものをfileNameに入れる
-			fileName = strings.Split(string(file.Name()), expendString)
-			// log.Println(fileName)
-			paths = append(paths, fileName[0])
-		}
-	}
-	// log.Println(paths)
-	//ファイルパスがなかった場合
-	if paths == nil {
-		err = errors.New("テキストファイルが存在しません")
-		log.Print(err)
+		panic(err.Error())
 	}
 
+	rows, err := db.Query("SELECT title FROM wikis")
+	if err != nil {
+		panic(err.Error())
+	}
+	var wiki Wiki
+	var titles []string
+	for rows.Next() {
+		err := rows.Scan(&wiki.Title)
+		if err != nil {
+			panic(err.Error())
+		}
+		titles = append(titles, wiki.Title)
+	}
 	t := template.Must(template.ParseFiles("template/top.html"))
-	err = t.Execute(w, paths)
+	err = t.Execute(w, titles)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -180,13 +160,28 @@ func renderTemplate(w http.ResponseWriter, tmpl string, p *Page) {
 
 //titleからファイル名を読み込んで新しいPageのポインタを返す
 func loadPage(title string) (*Page, error) {
-	filename := title + ".txt"
-	body, err := ioutil.ReadFile(filename)
-	//errに値が入ったらエラーとしてbodyの値をnilにして返す
+	// filename := title + ".txt"
+	// body, err := ioutil.ReadFile(filename)
+	// //errに値が入ったらエラーとしてbodyの値をnilにして返す
+	// if err != nil {
+	// 	return nil, err
+	// }
+	db, err := sql.Open("mysql", "root:Reibo1998@@/go_wiki")
+	if err != nil {
+		panic(err.Error())
+	}
+
+	rows, err := db.Query("select title, content from wikis where title = ?", title)
 	if err != nil {
 		return nil, err
 	}
-	return &Page{Title: title, Body: body}, nil //Pageをポインタで返す
+
+	var wiki Wiki
+	for rows.Next() {
+		err = rows.Scan(&wiki.Title, &wiki.Content)
+		// log.Print(wiki.Title)
+	}
+	return &Page{Title: wiki.Title, Body: []byte(wiki.Content)}, nil //Pageをポインタで返す
 }
 
 func main() {
