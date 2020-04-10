@@ -6,7 +6,8 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http" //HTTPプロトコルを利用してくれるパッケージ
-	"regexp"   //正規表現のパッケージ
+	"os"
+	"regexp" //正規表現のパッケージ
 	"strings"
 )
 
@@ -48,15 +49,6 @@ func getTitle(w http.ResponseWriter, r *http.Request) (title string, err error) 
 	}
 	return
 }
-
-// func newHandler(w http.ResponseWriter, r *http.Request) {
-// 	t := template.Must(template.ParseFiles("template/new.html"))
-// 	err = t.Execute(w)
-// 	if err != nil {
-// 		http.Error(w, err.Error(), http.StatusInternalServerError)
-// 		return
-// 	}
-// }
 
 func viewHandler(w http.ResponseWriter, r *http.Request, title string) { //*http.RequestではURLの情報にアクセスできる
 	p, err := loadPage(title)
@@ -124,10 +116,6 @@ func topHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// func newHandler(w http.ResponseWriter, r *http.Request) {
-// 	renderTemplate(w, "/new/", nil)
-// }
-
 func makeHandler(fn func(http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		//Requestからページタイトルを取り出して、fnを呼び出す
@@ -171,9 +159,8 @@ func loadPage(title string) (*Page, error) {
 }
 
 func main() {
-	fs := http.FileServer(http.Dir("/"))
-	// log.Print(fs)
-	http.Handle("/new/", fs)
+	dir, _ := os.Getwd()
+	http.Handle("/new/", http.StripPrefix("/new/", http.FileServer(http.Dir(dir+"/static"))))
 	http.HandleFunc("/view/", makeHandler(viewHandler)) //パスを指定してどういった動きにするのかをハンドリングする
 	http.HandleFunc("/edit/", makeHandler(editHandler)) //パスを指定してどういった動きにするのかをハンドリングする
 	http.HandleFunc("/save/", makeHandler(saveHandler)) //パスを指定してどういった動きにするのかをハンドリングする

@@ -1,1 +1,18 @@
-<h1>hi</h1>
+<h1 style="background: #c2edff;padding: 0.5em;">Wikiページ</h1>
+<h2 style="background: linear-gradient(transparent 70%, #a7d6ff 70%)">新規作成方法</h2>
+<div>
+    新しくwikiページを作成します。
+</div>
+<h2 style="background: linear-gradient(transparent 70%, #a7d6ff 70%)">create new wiki</h2>
+<form id="form" action="" method="POST">
+    <div><input type='text' id='form-title'></div>
+    <div><textarea name="body" rows="20" cols="80"></textarea><br></div>
+    <div><input type="submit" value="Save"></div>
+</form>
+
+<script type="text/javascript">
+const form = document.getElementById('form')
+document.getElementById('form-title').addEventListener('change', function(e){
+    form.action = '/save/' + e.target.value 
+})
+</script>
