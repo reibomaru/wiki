@@ -6,11 +6,12 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http" //HTTPプロトコルを利用してくれるパッケージ
-	"regexp"   //正規表現のパッケージ
+	"os"
+	"regexp" //正規表現のパッケージ
 	"strings"
 )
 
-//wikiのデータ構造
+//Page wikiのデータ構造
 type Page struct {
 	Title string //タイトル
 	Body  []byte //タイトルの中身
@@ -27,13 +28,13 @@ var templates = make(map[string]*template.Template)
 var titleValidator = regexp.MustCompile("^[a-zA-Z0-9]+$")
 
 //.txt
-const expend_string = ".txt"
+const expendString = ".txt"
 
 //初期化関数
 func init() {
 	for _, tmpl := range []string{"edit", "view"} {
 		//エラーの場合Panicを起こすためエラー処理はなし
-		t := template.Must(template.ParseFiles(tmpl + ".html"))
+		t := template.Must(template.ParseFiles("template/" + tmpl + ".html"))
 		templates[tmpl] = t
 	}
 }
@@ -60,14 +61,16 @@ func viewHandler(w http.ResponseWriter, r *http.Request, title string) { //*http
 }
 
 func editHandler(w http.ResponseWriter, r *http.Request, title string) {
-	p, err := loadPage(title)
+	p, err := loadPage(title) //
 	if err != nil {
 		p = &Page{Title: title}
 	}
 	renderTemplate(w, "edit", p)
 }
 
+//
 func saveHandler(w http.ResponseWriter, r *http.Request, title string) {
+	log.Print(r.FormValue("body"))
 	body := r.FormValue("body")
 	p := &Page{Title: title, Body: []byte(body)}
 	err := p.save()
@@ -79,37 +82,40 @@ func saveHandler(w http.ResponseWriter, r *http.Request, title string) {
 }
 
 func topHandler(w http.ResponseWriter, r *http.Request) {
-	//main.goがいる階層のディレクトリにある.txtデータを取得する
+	//main.goがいる階層のディレクトリにあるfileを取得する
 	files, err := ioutil.ReadDir("./")
 	if err != nil {
 		err = errors.New("所定のディレクトリ内にテキストファイルがありません")
 		log.Print(err)
 		return
 	}
-
 	var paths []string    //テキストデータの名前
-	var fileName []string //でキスとデータのファイル名
+	var fileName []string //テキストデータのファイル名
+	// filesの中から.txtファイルの名前と
 	for _, file := range files {
 		//対象となる.txtデータのみを取得
-		if strings.HasSuffix(file.Name(), expend_string) {
+		if strings.HasSuffix(file.Name(), expendString) {
 			//テキストデータの .txtで名前をスライスしたものをfileNameに入れる
-			fileName = strings.Split(string(file.Name()), expend_string)
+			fileName = strings.Split(string(file.Name()), expendString)
+			// log.Println(fileName)
 			paths = append(paths, fileName[0])
 		}
 	}
+	// log.Println(paths)
 	//ファイルパスがなかった場合
 	if paths == nil {
 		err = errors.New("テキストファイルが存在しません")
 		log.Print(err)
 	}
 
-	t := template.Must(template.ParseFiles("top.html"))
+	t := template.Must(template.ParseFiles("template/top.html"))
 	err = t.Execute(w, paths)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 }
+
 func makeHandler(fn func(http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		//Requestからページタイトルを取り出して、fnを呼び出す
@@ -153,9 +159,11 @@ func loadPage(title string) (*Page, error) {
 }
 
 func main() {
+	dir, _ := os.Getwd()
+	http.Handle("/new/", http.StripPrefix("/new/", http.FileServer(http.Dir(dir+"/static"))))
 	http.HandleFunc("/view/", makeHandler(viewHandler)) //パスを指定してどういった動きにするのかをハンドリングする
 	http.HandleFunc("/edit/", makeHandler(editHandler)) //パスを指定してどういった動きにするのかをハンドリングする
 	http.HandleFunc("/save/", makeHandler(saveHandler)) //パスを指定してどういった動きにするのかをハンドリングする
 	http.HandleFunc("/top/", topHandler)                //パスを指定してどういった動きにするのかをハンドリングする
-	http.ListenAndServe(":8080", nil)                   //サーバーを自分のPCの中で立ち上げている、ポートを8080としてたちあげる
+	http.ListenAndServe(":3000", nil)                   //サーバーを自分のPCの中で立ち上げている、ポートを8080としてたちあげる
 }
