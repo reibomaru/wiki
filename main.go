@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"errors"
 	"html/template"
 	"io/ioutil"
@@ -9,12 +10,20 @@ import (
 	"os"
 	"regexp" //正規表現のパッケージ
 	"strings"
+
+	_ "github.com/go-sql-driver/mysql"
 )
 
 //Page wikiのデータ構造
 type Page struct {
 	Title string //タイトル
 	Body  []byte //タイトルの中身
+}
+
+type Wiki struct {
+	ID      int
+	Title   string
+	Content string
 }
 
 //パスのアドレスを設定して文字の長さを定数として持つ
@@ -72,12 +81,33 @@ func editHandler(w http.ResponseWriter, r *http.Request, title string) {
 func saveHandler(w http.ResponseWriter, r *http.Request, title string) {
 	log.Print(r.FormValue("body"))
 	body := r.FormValue("body")
-	p := &Page{Title: title, Body: []byte(body)}
-	err := p.save()
+
+	db, err := sql.Open("mysql", "root:Reibo1998@@/go_wiki")
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		panic(err.Error())
 	}
+
+	stmtInsert, err := db.Prepare("INSERT INTO wikis(title, content) VALUES(?,?)")
+	if err != nil {
+		panic(err.Error())
+	}
+
+	result, err := stmtInsert.Exec(title, body)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	lastInsertID, err := result.LastInsertId()
+	if err != nil {
+		panic(err.Error())
+	}
+	log.Println(lastInsertID)
+	// p := &Page{Title: title, Body: []byte(body)}
+	// err := p.save()
+	// if err != nil {
+	// 	http.Error(w, err.Error(), http.StatusInternalServerError)
+	// 	return
+	// }
 	http.Redirect(w, r, "/view/"+title, http.StatusFound)
 }
 
@@ -140,12 +170,13 @@ func renderTemplate(w http.ResponseWriter, tmpl string, p *Page) {
 }
 
 //テキストファイルの保存メソッド
-func (p *Page) save() error {
-	//タイトルの名前でテキストファイルを作成して保存します。
-	filename := p.Title + ".txt"
-	//0600は、テキストデータを書き込んだり読み込んだりする権限を設定しています。
-	return ioutil.WriteFile(filename, p.Body, 0600)
-}
+// func (p *Page) save() error {
+// 	//タイトルの名前でテキストファイルを作成して保存します。
+// 	filename := p.Title + ".txt"
+
+// 	//0600は、テキストデータを書き込んだり読み込んだりする権限を設定しています。
+// 	return ioutil.WriteFile(filename, p.Body, 0600)
+// }
 
 //titleからファイル名を読み込んで新しいPageのポインタを返す
 func loadPage(title string) (*Page, error) {
